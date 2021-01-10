@@ -42,7 +42,7 @@ Servo servo;
 Servo servo1;
 Servo servo2;
 
-//PID
+//PID Control
 int previous_error = STARTING_DUMMY_VALUE; //dummy starting value
 int dist_between_sensors = 15; //may have to do more precise measurements on this...
 //need to have it be far enough away for this error to have meaning but also for there to be big enough range in reflectance values...
