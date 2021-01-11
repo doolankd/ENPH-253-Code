@@ -44,19 +44,18 @@ Servo servo2;
 
 //PID Control
 int previous_error = STARTING_DUMMY_VALUE; //dummy starting value
-int dist_between_sensors = 15; //may have to do more precise measurements on this...
-//need to have it be far enough away for this error to have meaning but also for there to be big enough range in reflectance values...
-double gain_scaling_factor = 1.0; //scales down the gain input from the potentiometers.
-int current_state_count = 1; //beginning of counting
+int dist_between_sensors = 15; // experimental variable
+double gain_scaling_factor = 1.0; //scales down the gain input from the potentiometers
+int current_state_count = 1; //beginning of count
 int previous_state_count = STARTING_DUMMY_VALUE; //dummy starting value
 int previous_state = STARTING_DUMMY_VALUE; //dummy starting value;
-double correction_scaling_factor = 1.25; //play around with this value to get g value to fit within duty range.
+double correction_scaling_factor = 1.25; //play around with this value to get g value to fit within duty range
 int max_motor_duty = 65535; //max number the duty can be in motor format
 int min_motor_duty = 1; //min number used for linearization?
-int nominal_motor_L_duty = 30500; // this value should be larger than R
+int nominal_motor_L_duty = 30500; // this value should be larger than R - from experimentation
 int nominal_motor_R_duty = 29500;
-int nominal_backwards_L_duty = -30000; //L is in fact R
-int nominal_backwards_R_duty = -33000; //-45000, this is 48000
+int nominal_backwards_L_duty = -30000; 
+int nominal_backwards_R_duty = -33000; 
 int num_loops = 0;
 double slope_scaling_factor = 100.0;
 int backing_up = 0;
@@ -95,8 +94,8 @@ int incr_R_servo = 1;
 int incr_W_servo = 1;
 int incr_E_servo = 2;
 
-void run_motor(int duty, PinName motorPin_F, PinName motorPin_B) 
-{
+void run_motor(int duty, PinName motorPin_F, PinName motorPin_B) {
+
   //duty: if > 0, turn motor forward as described above
   //      if < 0, turn motor backward as described above
   if (duty > 0) {
@@ -112,20 +111,18 @@ void run_motor(int duty, PinName motorPin_F, PinName motorPin_B)
   }
 }
 
-void stop_motion() 
-{
+void stop_motion() {
   run_motor(min_motor_duty,MOTOR_L_F,MOTOR_L_R);
   run_motor(min_motor_duty,MOTOR_R_F,MOTOR_R_R);
 }
 
-void move_backwards()
-{
+void move_backwards() {
   run_motor(nominal_backwards_R_duty,MOTOR_R_F,MOTOR_R_R);
   run_motor(nominal_backwards_L_duty,MOTOR_L_F,MOTOR_L_R);
 }
 
-void intrpt_PAUSE_DUMP()
-{
+void intrpt_PAUSE_DUMP() {
+
   stop_motion();
   rear_hatch++;
 
@@ -162,12 +159,12 @@ void intrpt_PAUSE_DUMP()
   }
 }
 
-void intrpt_CSC_THRESH()
-{
+void intrpt_CSC_THRESH() {
   current_state_thresh = current_state_thresh + 50;
 }
 
 void Servo_Run(char letter, int pos_start, int pos_write, int d_time, int incr) {
+
   display.clearDisplay();
   display.setCursor(0,0);
   display.setTextSize(1);
@@ -240,6 +237,7 @@ if (letter == 'W') {
 }
 
 void setup() {
+
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   display.display();
   delay(2000);
@@ -248,6 +246,7 @@ void setup() {
   servo1.attach(SERVO1);
   servo2.attach(SERVO2);
 
+  //On startup
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -268,11 +267,11 @@ void setup() {
   run_motor(nominal_motor_L_duty,MOTOR_L_F,MOTOR_L_R);
   run_motor(nominal_motor_R_duty,MOTOR_R_F,MOTOR_R_R);
 
-  //2mm switch
+  //2mm mechanical switch
   pinMode(PAUSE_DUMP, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PAUSE_DUMP), intrpt_PAUSE_DUMP, RISING);
 
-  //push button
+  //onboard push button
   pinMode(CSC_THRESH, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(CSC_THRESH), intrpt_CSC_THRESH, RISING);
 
@@ -281,8 +280,10 @@ void setup() {
   pinMode(TRIG, OUTPUT);
 }
 
+//main control loop
 void loop() {
 
+  //set initial servo positions
   if (num_loops == 2) {
     servo.write(position_initial_W);
     servo1.write(position_initial_E);
@@ -299,27 +300,9 @@ void loop() {
   }
 
   if (backing_up != 1) {
-    /*
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0,0);
-    display.print("distance: ");
-    display.println(distance);
-    display.display();
-    */
 
+    //enter this can detection loop every 100 iterations if we previously were on black tape
     if (current_state_count > 100 && previous_error == 0) {
-    // if (num_loops % 25 == 0) { //400
-    //   //Sonar setup
-    //   digitalWrite(TRIG, LOW);
-    //   delay(1);
-    //   digitalWrite(TRIG, HIGH);
-    //   delay(5);
-    //   digitalWrite(TRIG, LOW);
-    //   double duration = pulseIn(ECHO, HIGH);
-    //   distance = duration*0.034/2;
-    // }
 
       //Sonar setup
       digitalWrite(TRIG, LOW);
@@ -330,7 +313,7 @@ void loop() {
       double duration = pulseIn(ECHO, HIGH);
       distance = duration*0.034/2;
 
-      // Sees can
+      //Locates can, picks it up
       if (distance < distance_detect) {
         stop_motion();
 
@@ -389,11 +372,10 @@ void loop() {
     //proportional control
     double p = error*p_gain;
 
-    //derivative control - wrote when i was very tired so I may have made mistakes
+    //derivative control
     double slope = 0;
-    double d = 0; //for very first state the derivative control should be 0
+    double d = 0; //for very first state, derivative control should be 0
 
-    //should this go before or after the d calculation block? if before, then am taking the difference in time including the 
     if (previous_error == error) {
       current_state_count++;
     } else if (previous_error != STARTING_DUMMY_VALUE) {
@@ -406,12 +388,12 @@ void loop() {
       slope = (double)(error - previous_state) / (previous_state_count + current_state_count - 1) * slope_scaling_factor; //-1 because i want it to be the true difference in time (time final - time initial), not with an extra increment (look at the graph at the end of lecture 5 to understand what I mean)
       d = slope*d_gain;
     }
-    previous_error = error;
-    //potential bug: derivative does not go to 0 as soon as tape sensors are aligned on tape. Have to test and see if this is an issue or not.
 
+    previous_error = error;
     int g = (p+d) * correction_scaling_factor;
 
-    if (num_loops % 2000 == 0) { //shouldnt print to screen every loop -> slows down tape following execution
+    //shouldn't print to screen every loop -> slows down tape following execution
+    if (num_loops % 2000 == 0) { 
       display.clearDisplay();
       display.setCursor(0,0);
       display.print("pg");
@@ -438,6 +420,7 @@ void loop() {
       display.display();
     }
 
+    //if we detect aluminum, we will back up
     if (position_L_analog <= ON_ELEVATED_TAPE && position_R_analog <= ON_ELEVATED_TAPE) {
       move_backwards();
       delay(1000);
@@ -447,20 +430,17 @@ void loop() {
         if (error > 0) {
           run_motor(nominal_motor_R_duty + g*(1.5),MOTOR_R_F,MOTOR_R_R); //+1.1
           run_motor(nominal_motor_L_duty - g*(1.45),MOTOR_L_F,MOTOR_L_R); //+1.25
-          //run_motor(min_motor_duty,MOTOR_L_F,MOTOR_L_R);
-          //run_motor(-nominal_motor_L_duty,MOTOR_L_F,MOTOR_L_R); //+1.25
         } else if (error < 0) {
-          // g is negative for error < 0 so that's why we multiply it by a -1
+          //g is negative for error < 0 so that's why we multiply it by a -1
           run_motor(nominal_motor_L_duty + g*(-1.4),MOTOR_L_F,MOTOR_L_R); //-1.1
           run_motor(nominal_motor_R_duty - g*(-1.6),MOTOR_R_F,MOTOR_R_R); //-1.25
-          //run_motor(min_motor_duty,MOTOR_R_F,MOTOR_R_R); 
-          //run_motor(-nominal_motor_L_duty,MOTOR_R_F,MOTOR_R_R); 
         } else {
+          //moving forward
           run_motor(nominal_motor_R_duty + straight_factor,MOTOR_R_F,MOTOR_R_R);
           run_motor(nominal_motor_L_duty + straight_factor,MOTOR_L_F,MOTOR_L_R);
         }
       } else {
-        //backspin if current_state_count < current_state_thresh
+        //if current_state_count < current_state_thresh -> we're repaidly changing position, NEED BACKSPIN
         if (error > 0) {
           run_motor(nominal_motor_R_duty + g*(1.4),MOTOR_R_F,MOTOR_R_R); //+1.1
           run_motor(-nominal_motor_L_duty - g*(1.45),MOTOR_L_F,MOTOR_L_R); //+1.25//+0.9
